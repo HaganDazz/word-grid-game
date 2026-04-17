@@ -675,8 +675,9 @@ $('btn-cancel-username').addEventListener('click', showMenu);
 $('username-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-save-username').click(); });
 
 actionBtn.addEventListener('click', () => {
-  // In daily mode, restart becomes a practice round (so people can't farm daily).
-  if (mode === 'daily') startGame('practice');
+  // After a daily game ends, "Done" returns to the menu.
+  // Otherwise (practice, or mid-daily restart) start a fresh practice game — daily is locked to once per day.
+  if (mode === 'daily' && gameOver) showMenu();
   else startGame('practice');
 });
 backBtn.addEventListener('click', showMenu);
