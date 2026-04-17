@@ -274,6 +274,8 @@ let timerId = null;
 let gameOver = false;
 let usedWords = new Set();
 let dragging = false;
+let gameStarted = false;
+let countdownId = null;
 let mode = null;       // 'daily' or 'practice'
 let username = localStorage.getItem('wg_username') || '';
 
@@ -605,7 +607,9 @@ function escapeHtml(s) {
 function showMenu() {
   mode = null;
   gameOver = true;
+  gameStarted = false;
   clearInterval(timerId);
+  clearInterval(countdownId);
   clearSelection();
   menuEl.hidden = false;
   usernameScreen.hidden = true;
@@ -620,6 +624,8 @@ function showMenu() {
 
 function startGame(selectedMode) {
   mode = selectedMode;
+  clearInterval(timerId);
+  clearInterval(countdownId);
   menuEl.hidden = true;
   usernameScreen.hidden = true;
   topEl.hidden = false;
@@ -632,9 +638,9 @@ function startGame(selectedMode) {
 
   score = 0;
   scoreEl.textContent = 'Score: 0';
-  wordEl.textContent = '';
   usedWords = new Set();
-  gameOver = false;
+  gameStarted = false;
+  gameOver = true;               // input blocked until the countdown ends
   clearSelection();
 
   let rng;
@@ -642,14 +648,39 @@ function startGame(selectedMode) {
     const date = dailyKey();
     modeLabel.textContent = `Daily Challenge — ${date} · ${username}`;
     rng = mulberry32(hashString('wordgrid-' + date));
-    actionBtn.textContent = 'Restart (practice mode)';
   } else {
     modeLabel.textContent = 'Practice';
     rng = Math.random;
-    actionBtn.textContent = 'Restart';
   }
   generateGrid(rng);
-  startTimer();
+
+  timeLeft = TIME_LIMIT;
+  timerEl.textContent = `Time: ${TIME_LIMIT}`;
+  wordEl.textContent = 'Ready when you are';
+  actionBtn.textContent = 'Start Game';
+}
+
+function beginCountdown() {
+  if (gameStarted) return;
+  clearInterval(countdownId);
+  actionBtn.hidden = true;
+  wordEl.textContent = '';
+  let count = 3;
+  timerEl.textContent = `Starting in ${count}…`;
+  countdownId = setInterval(() => {
+    count--;
+    if (count > 0) {
+      timerEl.textContent = `Starting in ${count}…`;
+    } else {
+      clearInterval(countdownId);
+      countdownId = null;
+      actionBtn.hidden = false;
+      actionBtn.textContent = mode === 'daily' ? 'Restart (practice mode)' : 'Restart';
+      gameStarted = true;
+      gameOver = false;
+      startTimer();
+    }
+  }, 1000);
 }
 
 $('btn-practice').addEventListener('click', () => startGame('practice'));
@@ -678,6 +709,8 @@ $('btn-cancel-username').addEventListener('click', showMenu);
 $('username-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-save-username').click(); });
 
 actionBtn.addEventListener('click', () => {
+  // Before the first tick: button says "Start Game" — run the pre-game countdown.
+  if (!gameStarted) { beginCountdown(); return; }
   // After a daily game ends, "Done" returns to the menu.
   // Otherwise (practice, or mid-daily restart) start a fresh practice game — daily is locked to once per day.
   if (mode === 'daily' && gameOver) showMenu();
