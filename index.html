@@ -151,6 +151,7 @@
   <div id="menu">
     <button id="btn-daily" class="primary">Daily Challenge</button>
     <button id="btn-practice" class="secondary">Practice (random)</button>
+    <button id="btn-leaderboard" class="secondary">View Leaderboard</button>
     <p id="menu-hint">Daily = same board for everyone, once per day.<br>Practice = fresh random board every time.</p>
   </div>
 
@@ -622,6 +623,23 @@ function showMenu() {
   statusMsg.textContent = '';
 }
 
+async function showLeaderboardScreen() {
+  mode = null;
+  gameStarted = false;
+  gameOver = true;
+  clearInterval(timerId);
+  clearInterval(countdownId);
+  menuEl.hidden = true;
+  usernameScreen.hidden = true;
+  topEl.hidden = true;
+  boardEl.hidden = true;
+  actionBtn.hidden = true;
+  backBtn.hidden = false;
+  wordsPanel.style.display = 'none';
+  statusMsg.textContent = '';
+  await showLeaderboard();
+}
+
 function startGame(selectedMode) {
   mode = selectedMode;
   clearInterval(timerId);
@@ -685,6 +703,7 @@ function beginCountdown() {
 }
 
 $('btn-practice').addEventListener('click', () => startGame('practice'));
+$('btn-leaderboard').addEventListener('click', showLeaderboardScreen);
 
 $('btn-daily').addEventListener('click', () => {
   if (!FIREBASE_ENABLED) {
