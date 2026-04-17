@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Word Grid Game</title>
+<style>
+  :root {
+    --bg-dark: #1e1e2e;
+    --bg-panel: #282a36;
+    --btn-fill: #44475a;
+    --btn-selected: #bd93f9;
+    --btn-outline: #6272a4;
+    --text-light: #f8f8f2;
+    --line-color: #ff79c6;
+    --score-color: #50fa7b;
+    --timer-color: #ffb86c;
+    --word-color: #8be9fd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg-dark);
+    color: var(--text-light);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+  }
+  #top {
+    background: var(--bg-panel);
+    width: min(450px, 100%);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 4px 12px;
+    align-items: center;
+  }
+  #score  { color: var(--score-color); font-weight: 600; font-size: 1.1rem; }
+  #timer  { color: var(--timer-color); font-weight: 600; font-size: 1.1rem; text-align: right; }
+  #word   { grid-column: 1 / 3; color: var(--word-color); font-size: 1.15rem; min-height: 1.4em; text-align: center; }
+  #board {
+    position: relative;
+    width: min(450px, 100vw - 32px);
+    aspect-ratio: 1;
+    touch-action: none;
+  }
+  svg { width: 100%; height: 100%; display: block; }
+  .cell-rect { fill: var(--btn-fill); stroke: var(--btn-outline); stroke-width: 2; transition: fill 0.1s; }
+  .cell-rect.selected { fill: var(--btn-selected); }
+  .cell-letter { fill: var(--text-light); font-weight: bold; font-size: 28px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .cell-points { fill: var(--timer-color); font-weight: bold; font-size: 11px; text-anchor: end; pointer-events: none; }
+  .drag-line { stroke: var(--line-color); stroke-width: 5; stroke-linecap: round; fill: none; pointer-events: none; }
+  button.action {
+    background: var(--btn-selected);
+    color: var(--bg-dark);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.action:hover { background: var(--line-color); color: var(--text-light); }
+  #words-panel {
+    display: none;
+    width: min(450px, 100%);
+    background: var(--bg-panel);
+    border-radius: 12px;
+    padding: 14px;
+    max-height: 60vh;
+    overflow-y: auto;
+    font-family: "Consolas", ui-monospace, monospace;
+    font-size: 0.95rem;
+    white-space: pre;
+  }
+  #words-panel h3 { color: var(--word-color); margin-bottom: 10px; font-family: inherit; white-space: normal; }
+  .hit  { color: var(--score-color); }
+  .miss { color: var(--text-light); opacity: 0.75; }
+  #loading { opacity: 0.7; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <div id="loading">Loading dictionary…</div>
+  <div id="top" hidden>
+    <span id="score">Score: 0</span>
+    <span id="timer">Time: 30</span>
+    <span id="word"></span>
+  </div>
+  <div id="board" hidden>
+    <svg id="svg" viewBox="0 0 450 450" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+  <button id="action-btn" class="action" hidden>New Game</button>
+  <div id="words-panel"></div>
+
+<script>
+(() => {
+  const GRID_SIZE = 4;
+  const TIME_LIMIT = 30;
+  const MIN_WORD_LENGTH = 3;
+  const MAX_LETTER_COUNT = 2;
+  const MIN_VOWELS = 5;
+  const MAX_VOWELS = 7;
+  const VOWELS = new Set(['A','E','I','O','U']);
+
+  const LETTER_POINTS = (() => {
+    const p = {};
+    for (const ch of "AEIOULNSTR") p[ch] = 1;
+    for (const ch of "DG") p[ch] = 2;
+    for (const ch of "BCMP") p[ch] = 3;
+    for (const ch of "FHVWY") p[ch] = 4;
+    p["K"] = 5;
+    for (const ch of "JX") p[ch] = 8;
+    for (const ch of "QZ") p[ch] = 10;
+    return p;
+  })();
+
+  const LETTER_WEIGHTS = {
+    E:13, A:10, I:9, O:8, U:4,
+    R:8, T:8, N:7, S:7, L:6,
+    D:5, H:5, G:4, C:4, M:4,
+    B:3, P:3, F:3, Y:3, W:3,
+    K:2, V:2, X:1, Z:1, J:1, Q:1,
+  };
+
+  // Layout constants (match Python canvas)
+  const MARGIN = 10;
+  const BUTTON_SIZE = 65;
+  const BUTTON_SPACING = 30;
+  const CORNER_RADIUS = 14;
+
+  const $ = id => document.getElementById(id);
+  const scoreEl = $('score'), timerEl = $('timer'), wordEl = $('word');
+  const topEl = $('top'), boardEl = $('board'), svg = $('svg');
+  const actionBtn = $('action-btn'), wordsPanel = $('words-panel'), loadingEl = $('loading');
+
+  let dictionary = new Set();
+  let prefixes = new Set();
+  let letters = [];       // 2D array of uppercase letters
+  let cellRects = [];     // 2D array of SVG rect elements
+  let cellPositions = []; // 2D array of {x,y,cx,cy}
+  let selected = [];      // [[r,c], ...]
+  let lineEls = [];
+  let score = 0;
+  let timeLeft = TIME_LIMIT;
+  let timerId = null;
+  let gameOver = false;
+  let usedWords = new Set();
+  let dragging = false;
+
+  function weightedPick(pool) {
+    const keys = Object.keys(pool);
+    const total = keys.reduce((s, k) => s + pool[k], 0);
+    let r = Math.random() * total;
+    for (const k of keys) {
+      r -= pool[k];
+      if (r <= 0) return k;
+    }
+    return keys[keys.length - 1];
+  }
+
+  function sampleBalancedLetters(total) {
+    const vowelTarget = MIN_VOWELS + Math.floor(Math.random() * (MAX_VOWELS - MIN_VOWELS + 1));
+    const consonantTarget = total - vowelTarget;
+    const vowelPool = {}, consonantPool = {};
+    for (const [k, v] of Object.entries(LETTER_WEIGHTS)) {
+      if (VOWELS.has(k)) vowelPool[k] = v;
+      else consonantPool[k] = v;
+    }
+    const counts = {};
+    const picked = [];
+    const draw = pool => {
+      const available = {};
+      for (const [k, v] of Object.entries(pool)) {
+        if ((counts[k] || 0) < MAX_LETTER_COUNT) available[k] = v;
+      }
+      const source = Object.keys(available).length ? available : pool;
+      return weightedPick(source);
+    };
+    for (let i = 0; i < vowelTarget; i++) {
+      const l = draw(vowelPool);
+      counts[l] = (counts[l] || 0) + 1;
+      picked.push(l);
+    }
+    for (let i = 0; i < consonantTarget; i++) {
+      const l = draw(consonantPool);
+      counts[l] = (counts[l] || 0) + 1;
+      picked.push(l);
+    }
+    for (let i = picked.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [picked[i], picked[j]] = [picked[j], picked[i]];
+    }
+    return picked;
+  }
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function el(name, attrs = {}) {
+    const e = document.createElementNS(SVG_NS, name);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    return e;
+  }
+
+  function generateGrid() {
+    svg.innerHTML = '';
+    letters = [];
+    cellRects = [];
+    cellPositions = [];
+    lineEls = [];
+    const flat = sampleBalancedLetters(GRID_SIZE * GRID_SIZE);
+    let idx = 0;
+    for (let r = 0; r < GRID_SIZE; r++) {
+      const letterRow = [], rectRow = [], posRow = [];
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const letter = flat[idx++];
+        const x = MARGIN + c * (BUTTON_SIZE + BUTTON_SPACING);
+        const y = MARGIN + r * (BUTTON_SIZE + BUTTON_SPACING);
+        const rect = el('rect', {
+          x, y, width: BUTTON_SIZE, height: BUTTON_SIZE,
+          rx: CORNER_RADIUS, ry: CORNER_RADIUS,
+          class: 'cell-rect'
+        });
+        svg.appendChild(rect);
+        const txt = el('text', {
+          x: x + BUTTON_SIZE / 2, y: y + BUTTON_SIZE / 2,
+          class: 'cell-letter'
+        });
+        txt.textContent = letter;
+        svg.appendChild(txt);
+        const pts = el('text', {
+          x: x + BUTTON_SIZE - 6, y: y + BUTTON_SIZE - 6,
+          class: 'cell-points'
+        });
+        pts.textContent = String(LETTER_POINTS[letter]);
+        svg.appendChild(pts);
+        letterRow.push(letter);
+        rectRow.push(rect);
+        posRow.push({ x, y, cx: x + BUTTON_SIZE / 2, cy: y + BUTTON_SIZE / 2 });
+      }
+      letters.push(letterRow);
+      cellRects.push(rectRow);
+      cellPositions.push(posRow);
+    }
+  }
+
+  function svgPoint(clientX, clientY) {
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    const sx = vb.width / rect.width;
+    const sy = vb.height / rect.height;
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+  }
+
+  function cellAt(x, y) {
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const p = cellPositions[r][c];
+        if (x > p.x && x < p.x + BUTTON_SIZE && y > p.y && y < p.y + BUTTON_SIZE) {
+          return [r, c];
+        }
+      }
+    }
+    return null;
+  }
+
+  function isSelected(r, c) {
+    return selected.some(([rr, cc]) => rr === r && cc === c);
+  }
+
+  function addLetter(r, c) {
+    if (isSelected(r, c)) return;
+    if (selected.length) {
+      const [lr, lc] = selected[selected.length - 1];
+      if (Math.abs(r - lr) > 1 || Math.abs(c - lc) > 1) return;
+    }
+    selected.push([r, c]);
+    cellRects[r][c].classList.add('selected');
+    if (selected.length > 1) {
+      const a = cellPositions[selected[selected.length - 2][0]][selected[selected.length - 2][1]];
+      const b = cellPositions[r][c];
+      const line = el('line', {
+        x1: a.cx, y1: a.cy, x2: b.cx, y2: b.cy,
+        class: 'drag-line'
+      });
+      svg.appendChild(line);
+      lineEls.push(line);
+    }
+    wordEl.textContent = selected.map(([rr, cc]) => letters[rr][cc]).join('');
+  }
+
+  function clearSelection() {
+    for (const [r, c] of selected) cellRects[r][c].classList.remove('selected');
+    for (const l of lineEls) l.remove();
+    selected = [];
+    lineEls = [];
+  }
+
+  function handleStart(clientX, clientY) {
+    if (gameOver) return;
+    clearSelection();
+    const p = svgPoint(clientX, clientY);
+    const hit = cellAt(p.x, p.y);
+    if (!hit) return;
+    dragging = true;
+    addLetter(hit[0], hit[1]);
+  }
+
+  function handleMove(clientX, clientY) {
+    if (!dragging || gameOver) return;
+    const p = svgPoint(clientX, clientY);
+    const hit = cellAt(p.x, p.y);
+    if (hit) addLetter(hit[0], hit[1]);
+  }
+
+  function handleEnd() {
+    if (!dragging) return;
+    dragging = false;
+    if (gameOver || !selected.length) return;
+    const word = selected.map(([r, c]) => letters[r][c]).join('').toLowerCase();
+    if (usedWords.has(word)) {
+      wordEl.textContent = `⚠️ ${word} already used`;
+    } else if (word.length >= MIN_WORD_LENGTH && dictionary.has(word)) {
+      usedWords.add(word);
+      let pts = 0;
+      for (const ch of word) pts += LETTER_POINTS[ch.toUpperCase()];
+      score += pts;
+      scoreEl.textContent = `Score: ${score}`;
+      wordEl.textContent = `✅ ${word} +${pts} pts`;
+    } else {
+      wordEl.textContent = `❌ ${word} not valid`;
+    }
+    clearSelection();
+  }
+
+  svg.addEventListener('mousedown', e => { e.preventDefault(); handleStart(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup', handleEnd);
+  svg.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    handleStart(t.clientX, t.clientY);
+  }, { passive: false });
+  svg.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    handleMove(t.clientX, t.clientY);
+  }, { passive: false });
+  svg.addEventListener('touchend', e => { e.preventDefault(); handleEnd(); }, { passive: false });
+
+  function startTimer() {
+    clearInterval(timerId);
+    timeLeft = TIME_LIMIT;
+    timerEl.textContent = `Time: ${timeLeft}`;
+    timerId = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) {
+        clearInterval(timerId);
+        timerEl.textContent = "Time's up!";
+        wordEl.textContent = "Game Over!";
+        gameOver = true;
+        showPossibleWords();
+        actionBtn.textContent = 'New Game';
+      } else {
+        timerEl.textContent = `Time: ${timeLeft}`;
+      }
+    }, 1000);
+  }
+
+  function showPossibleWords() {
+    const found = new Set();
+    const grid = letters.map(row => row.map(ch => ch.toLowerCase()));
+    const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
+    function dfs(r, c, word) {
+      if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE || visited[r][c]) return;
+      const nw = word + grid[r][c];
+      if (!prefixes.has(nw)) return;
+      if (nw.length >= MIN_WORD_LENGTH && dictionary.has(nw)) found.add(nw);
+      visited[r][c] = true;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr || dc) dfs(r + dr, c + dc, nw);
+        }
+      }
+      visited[r][c] = false;
+    }
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) dfs(r, c, "");
+    }
+    const scored = [...found].map(w => {
+      let p = 0;
+      for (const ch of w) p += LETTER_POINTS[ch.toUpperCase()];
+      return [w, p];
+    }).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+    const hits = scored.filter(([w]) => usedWords.has(w)).length;
+    let html = `<h3>${hits}/${scored.length} words found — score ${score}</h3>`;
+    if (!scored.length) {
+      html += 'No valid words found.';
+    } else {
+      for (const [w, p] of scored) {
+        const got = usedWords.has(w);
+        const mark = got ? '✓ ' : '  ';
+        const cls = got ? 'hit' : 'miss';
+        html += `<span class="${cls}">${mark}${w.padEnd(14, ' ')}${String(p).padStart(3, ' ')} pts</span>\n`;
+      }
+    }
+    wordsPanel.innerHTML = html;
+    wordsPanel.style.display = 'block';
+  }
+
+  function newGame() {
+    score = 0;
+    scoreEl.textContent = 'Score: 0';
+    wordEl.textContent = '';
+    usedWords = new Set();
+    gameOver = false;
+    clearSelection();
+    wordsPanel.style.display = 'none';
+    wordsPanel.innerHTML = '';
+    generateGrid();
+    startTimer();
+    actionBtn.textContent = 'Restart';
+  }
+
+  actionBtn.addEventListener('click', newGame);
+
+  async function loadDictionary() {
+    try {
+      const resp = await fetch('20k.txt');
+      if (!resp.ok) throw new Error(resp.statusText);
+      const text = await resp.text();
+      dictionary = new Set(
+        text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(Boolean)
+      );
+      prefixes = new Set();
+      for (const w of dictionary) {
+        for (let i = 1; i <= w.length; i++) prefixes.add(w.slice(0, i));
+      }
+      loadingEl.hidden = true;
+      topEl.hidden = false;
+      boardEl.hidden = false;
+      actionBtn.hidden = false;
+      newGame();
+    } catch (err) {
+      loadingEl.textContent = 'Failed to load 20k.txt — serve this page from an HTTP server (e.g. `python -m http.server`), not file://';
+    }
+  }
+
+  loadDictionary();
+})();
+</script>
+</body>
+</html>
