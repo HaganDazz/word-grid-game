@@ -104,28 +104,45 @@
     background: var(--bg-panel);
     border-radius: 12px;
     padding: 14px;
-    max-height: 50vh;
+    max-height: 55vh;
     overflow-y: auto;
   }
-  #words-panel {
-    font-family: "Consolas", ui-monospace, monospace;
+  #words-panel h3, #leaderboard-panel h3 { color: var(--word-color); margin-bottom: 10px; font-family: inherit; }
+  .word-row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    padding: 4px 4px;
     font-size: 0.95rem;
-    white-space: pre;
+    border-bottom: 1px solid rgba(98, 114, 164, 0.2);
   }
-  #words-panel h3, #leaderboard-panel h3 { color: var(--word-color); margin-bottom: 10px; font-family: inherit; white-space: normal; }
+  .word-row .mark { text-align: center; }
+  .word-row .pts { opacity: 0.75; font-variant-numeric: tabular-nums; }
   .hit  { color: var(--score-color); }
   .miss { color: var(--text-light); opacity: 0.75; }
   .lb-row {
     display: grid;
-    grid-template-columns: 30px 1fr auto;
+    grid-template-columns: 36px 1fr auto;
     gap: 10px;
     padding: 6px 4px;
     border-bottom: 1px solid var(--btn-fill);
     font-size: 0.95rem;
   }
-  .lb-row.me { background: rgba(189, 147, 249, 0.15); border-radius: 4px; }
+  .lb-row.me { background: rgba(189, 147, 249, 0.15); border-radius: 4px; padding: 6px 8px; }
   .lb-rank { opacity: 0.65; }
-  .lb-score { color: var(--score-color); font-weight: 600; }
+  .lb-score { color: var(--score-color); font-weight: 600; font-variant-numeric: tabular-nums; }
+  details.panel-collapse { width: min(450px, 100%); }
+  details.panel-collapse > summary {
+    background: var(--bg-panel);
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--word-color);
+    font-weight: 600;
+    list-style: none;
+  }
+  details.panel-collapse > summary::-webkit-details-marker { display: none; }
+  details.panel-collapse[open] > summary { border-radius: 8px 8px 0 0; }
   #status-msg { opacity: 0.8; font-size: 0.9rem; text-align: center; min-height: 1.2em; }
 </style>
 </head>
@@ -162,7 +179,7 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
-import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp }
+import { getFirestore, collection, addDoc, query, where, limit, getDocs, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
 // ==== FIREBASE CONFIG — paste your own from the Firebase console ====
@@ -490,13 +507,13 @@ function showPossibleWords() {
   const hits = scored.filter(([w]) => usedWords.has(w)).length;
   let html = `<h3>${hits}/${scored.length} words found — score ${score}</h3>`;
   if (!scored.length) {
-    html += 'No valid words found.';
+    html += '<p>No valid words found.</p>';
   } else {
     for (const [w, p] of scored) {
       const got = usedWords.has(w);
-      const mark = got ? '✓ ' : '  ';
       const cls = got ? 'hit' : 'miss';
-      html += `<span class="${cls}">${mark}${w.padEnd(14, ' ')}${String(p).padStart(3, ' ')} pts</span>\n`;
+      const mark = got ? '✓' : '';
+      html += `<div class="word-row ${cls}"><span class="mark">${mark}</span><span>${escapeHtml(w)}</span><span class="pts">${p} pts</span></div>`;
     }
   }
   wordsPanel.innerHTML = html;
@@ -548,17 +565,18 @@ async function showLeaderboard() {
     const q = query(
       collection(db, 'scores'),
       where('date', '==', date),
-      orderBy('score', 'desc'),
-      limit(20),
+      limit(200),
     );
     const snap = await getDocs(q);
     let html = `<h3>Today's Leaderboard (${date})</h3>`;
     if (snap.empty) {
       html += '<p>No scores yet — you could be the first!</p>';
     } else {
+      const rows = snap.docs.map(d => d.data())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 20);
       let rank = 1;
-      for (const doc of snap.docs) {
-        const d = doc.data();
+      for (const d of rows) {
         const mine = d.username === username;
         html += `<div class="lb-row ${mine ? 'me' : ''}">
           <span class="lb-rank">#${rank}</span>
