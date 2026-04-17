@@ -684,7 +684,7 @@ backBtn.addEventListener('click', showMenu);
 // ==== Dictionary load ====
 async function loadDictionary() {
   try {
-    const resp = await fetch('20k.txt');
+    const resp = await fetch('words_alpha.txt');
     if (!resp.ok) throw new Error(resp.statusText);
     const text = await resp.text();
     dictionary = new Set(text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(Boolean));
@@ -693,7 +693,7 @@ async function loadDictionary() {
       for (let i = 1; i <= w.length; i++) prefixes.add(w.slice(0, i));
     }
   } catch (err) {
-    statusMsg.textContent = 'Failed to load 20k.txt. Serve via HTTP (not file://).';
+    statusMsg.textContent = 'Failed to load words_alpha.txt. Serve via HTTP (not file://).';
   }
 }
 
