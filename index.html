@@ -32,8 +32,20 @@
     flex-direction: column;
     align-items: center;
     padding: 16px;
-    gap: 16px;
+    gap: 14px;
   }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  #menu, #username-screen {
+    background: var(--bg-panel);
+    width: min(450px, 100%);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  #menu p { opacity: 0.85; font-size: 0.95rem; text-align: center; }
   #top {
     background: var(--bg-panel);
     width: min(450px, 100%);
@@ -41,10 +53,10 @@
     padding: 12px 16px;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
     gap: 4px 12px;
     align-items: center;
   }
+  #mode-label { grid-column: 1 / 3; text-align: center; font-size: 0.85rem; opacity: 0.75; }
   #score  { color: var(--score-color); font-weight: 600; font-size: 1.1rem; }
   #timer  { color: var(--timer-color); font-weight: 600; font-size: 1.1rem; text-align: right; }
   #word   { grid-column: 1 / 3; color: var(--word-color); font-size: 1.15rem; min-height: 1.4em; text-align: center; }
@@ -60,39 +72,81 @@
   .cell-letter { fill: var(--text-light); font-weight: bold; font-size: 28px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
   .cell-points { fill: var(--timer-color); font-weight: bold; font-size: 11px; text-anchor: end; pointer-events: none; }
   .drag-line { stroke: var(--line-color); stroke-width: 5; stroke-linecap: round; fill: none; pointer-events: none; }
-  button.action {
-    background: var(--btn-selected);
-    color: var(--bg-dark);
+  button.action, button.primary, button.secondary {
     border: none;
-    padding: 10px 20px;
+    padding: 12px 22px;
     border-radius: 8px;
     font-weight: 700;
     font-size: 0.95rem;
     cursor: pointer;
     font-family: inherit;
   }
-  button.action:hover { background: var(--line-color); color: var(--text-light); }
-  #words-panel {
+  button.primary { background: var(--btn-selected); color: var(--bg-dark); width: 100%; }
+  button.secondary { background: var(--btn-fill); color: var(--text-light); width: 100%; }
+  button.action { background: var(--btn-selected); color: var(--bg-dark); }
+  button.primary:hover, button.action:hover { background: var(--line-color); color: var(--text-light); }
+  button.secondary:hover { background: var(--btn-outline); }
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 2px solid var(--btn-outline);
+    background: var(--btn-fill);
+    color: var(--text-light);
+    font-size: 1rem;
+    font-family: inherit;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--btn-selected); }
+  label { font-size: 0.9rem; opacity: 0.85; align-self: flex-start; }
+  #words-panel, #leaderboard-panel {
     display: none;
     width: min(450px, 100%);
     background: var(--bg-panel);
     border-radius: 12px;
     padding: 14px;
-    max-height: 60vh;
+    max-height: 50vh;
     overflow-y: auto;
+  }
+  #words-panel {
     font-family: "Consolas", ui-monospace, monospace;
     font-size: 0.95rem;
     white-space: pre;
   }
-  #words-panel h3 { color: var(--word-color); margin-bottom: 10px; font-family: inherit; white-space: normal; }
+  #words-panel h3, #leaderboard-panel h3 { color: var(--word-color); margin-bottom: 10px; font-family: inherit; white-space: normal; }
   .hit  { color: var(--score-color); }
   .miss { color: var(--text-light); opacity: 0.75; }
-  #loading { opacity: 0.7; font-size: 0.9rem; }
+  .lb-row {
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    gap: 10px;
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--btn-fill);
+    font-size: 0.95rem;
+  }
+  .lb-row.me { background: rgba(189, 147, 249, 0.15); border-radius: 4px; }
+  .lb-rank { opacity: 0.65; }
+  .lb-score { color: var(--score-color); font-weight: 600; }
+  #status-msg { opacity: 0.8; font-size: 0.9rem; text-align: center; min-height: 1.2em; }
 </style>
 </head>
 <body>
-  <div id="loading">Loading dictionary…</div>
+  <h1>Word Grid Game</h1>
+
+  <div id="menu">
+    <button id="btn-daily" class="primary">Daily Challenge</button>
+    <button id="btn-practice" class="secondary">Practice (random)</button>
+    <p id="menu-hint">Daily = same board for everyone, once per day.<br>Practice = fresh random board every time.</p>
+  </div>
+
+  <div id="username-screen" hidden>
+    <label for="username-input">Pick a username (1-20 chars)</label>
+    <input id="username-input" type="text" maxlength="20" autocomplete="off" placeholder="e.g. reece">
+    <button id="btn-save-username" class="primary">Start Daily</button>
+    <button id="btn-cancel-username" class="secondary">Back</button>
+  </div>
+
   <div id="top" hidden>
+    <span id="mode-label"></span>
     <span id="score">Score: 0</span>
     <span id="timer">Time: 30</span>
     <span id="word"></span>
@@ -101,363 +155,531 @@
     <svg id="svg" viewBox="0 0 450 450" preserveAspectRatio="xMidYMid meet"></svg>
   </div>
   <button id="action-btn" class="action" hidden>New Game</button>
+  <button id="back-btn" class="secondary" hidden style="width:min(450px,100%)">Back to Menu</button>
+  <div id="status-msg"></div>
+  <div id="leaderboard-panel"></div>
   <div id="words-panel"></div>
 
-<script>
-(() => {
-  const GRID_SIZE = 4;
-  const TIME_LIMIT = 30;
-  const MIN_WORD_LENGTH = 3;
-  const MAX_LETTER_COUNT = 2;
-  const MIN_VOWELS = 5;
-  const MAX_VOWELS = 7;
-  const VOWELS = new Set(['A','E','I','O','U']);
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
-  const LETTER_POINTS = (() => {
-    const p = {};
-    for (const ch of "AEIOULNSTR") p[ch] = 1;
-    for (const ch of "DG") p[ch] = 2;
-    for (const ch of "BCMP") p[ch] = 3;
-    for (const ch of "FHVWY") p[ch] = 4;
-    p["K"] = 5;
-    for (const ch of "JX") p[ch] = 8;
-    for (const ch of "QZ") p[ch] = 10;
-    return p;
-  })();
+// ==== FIREBASE CONFIG — paste your own from the Firebase console ====
+const FIREBASE_CONFIG = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+const FIREBASE_ENABLED = FIREBASE_CONFIG.apiKey !== "REPLACE_ME";
 
-  const LETTER_WEIGHTS = {
-    E:13, A:10, I:9, O:8, U:4,
-    R:8, T:8, N:7, S:7, L:6,
-    D:5, H:5, G:4, C:4, M:4,
-    B:3, P:3, F:3, Y:3, W:3,
-    K:2, V:2, X:1, Z:1, J:1, Q:1,
+let db = null;
+if (FIREBASE_ENABLED) {
+  const app = initializeApp(FIREBASE_CONFIG);
+  db = getFirestore(app);
+}
+
+// ==== Game constants ====
+const GRID_SIZE = 4;
+const TIME_LIMIT = 30;
+const MIN_WORD_LENGTH = 3;
+const MAX_LETTER_COUNT = 2;
+const MIN_VOWELS = 5;
+const MAX_VOWELS = 7;
+const VOWELS = new Set(['A','E','I','O','U']);
+
+const LETTER_POINTS = (() => {
+  const p = {};
+  for (const ch of "AEIOULNSTR") p[ch] = 1;
+  for (const ch of "DG") p[ch] = 2;
+  for (const ch of "BCMP") p[ch] = 3;
+  for (const ch of "FHVWY") p[ch] = 4;
+  p["K"] = 5;
+  for (const ch of "JX") p[ch] = 8;
+  for (const ch of "QZ") p[ch] = 10;
+  return p;
+})();
+
+const LETTER_WEIGHTS = {
+  E:13, A:10, I:9, O:8, U:4,
+  R:8, T:8, N:7, S:7, L:6,
+  D:5, H:5, G:4, C:4, M:4,
+  B:3, P:3, F:3, Y:3, W:3,
+  K:2, V:2, X:1, Z:1, J:1, Q:1,
+};
+
+const MARGIN = 10;
+const BUTTON_SIZE = 65;
+const BUTTON_SPACING = 30;
+const CORNER_RADIUS = 14;
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const $ = id => document.getElementById(id);
+
+// ==== Seeded PRNG (mulberry32) + string hash for date → seed ====
+function hashString(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  }
+  return h >>> 0;
+}
+function mulberry32(seed) {
+  return function() {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+function dailyKey() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
 
-  // Layout constants (match Python canvas)
-  const MARGIN = 10;
-  const BUTTON_SIZE = 65;
-  const BUTTON_SPACING = 30;
-  const CORNER_RADIUS = 14;
+// ==== Game state ====
+let dictionary = new Set();
+let prefixes = new Set();
+let letters = [];
+let cellRects = [];
+let cellPositions = [];
+let selected = [];
+let lineEls = [];
+let score = 0;
+let timeLeft = TIME_LIMIT;
+let timerId = null;
+let gameOver = false;
+let usedWords = new Set();
+let dragging = false;
+let mode = null;       // 'daily' or 'practice'
+let username = localStorage.getItem('wg_username') || '';
 
-  const $ = id => document.getElementById(id);
-  const scoreEl = $('score'), timerEl = $('timer'), wordEl = $('word');
-  const topEl = $('top'), boardEl = $('board'), svg = $('svg');
-  const actionBtn = $('action-btn'), wordsPanel = $('words-panel'), loadingEl = $('loading');
+// ==== Element refs ====
+const menuEl = $('menu'), usernameScreen = $('username-screen'), topEl = $('top'),
+      boardEl = $('board'), svg = $('svg'), actionBtn = $('action-btn'),
+      backBtn = $('back-btn'), wordsPanel = $('words-panel'),
+      leaderboardPanel = $('leaderboard-panel'), statusMsg = $('status-msg'),
+      scoreEl = $('score'), timerEl = $('timer'), wordEl = $('word'),
+      modeLabel = $('mode-label');
 
-  let dictionary = new Set();
-  let prefixes = new Set();
-  let letters = [];       // 2D array of uppercase letters
-  let cellRects = [];     // 2D array of SVG rect elements
-  let cellPositions = []; // 2D array of {x,y,cx,cy}
-  let selected = [];      // [[r,c], ...]
-  let lineEls = [];
-  let score = 0;
-  let timeLeft = TIME_LIMIT;
-  let timerId = null;
-  let gameOver = false;
-  let usedWords = new Set();
-  let dragging = false;
-
-  function weightedPick(pool) {
-    const keys = Object.keys(pool);
-    const total = keys.reduce((s, k) => s + pool[k], 0);
-    let r = Math.random() * total;
-    for (const k of keys) {
-      r -= pool[k];
-      if (r <= 0) return k;
-    }
-    return keys[keys.length - 1];
+// ==== Letter generation (accepts RNG so daily can be seeded) ====
+function weightedPick(pool, rng) {
+  const keys = Object.keys(pool);
+  const total = keys.reduce((s, k) => s + pool[k], 0);
+  let r = rng() * total;
+  for (const k of keys) {
+    r -= pool[k];
+    if (r <= 0) return k;
   }
+  return keys[keys.length - 1];
+}
 
-  function sampleBalancedLetters(total) {
-    const vowelTarget = MIN_VOWELS + Math.floor(Math.random() * (MAX_VOWELS - MIN_VOWELS + 1));
-    const consonantTarget = total - vowelTarget;
-    const vowelPool = {}, consonantPool = {};
-    for (const [k, v] of Object.entries(LETTER_WEIGHTS)) {
-      if (VOWELS.has(k)) vowelPool[k] = v;
-      else consonantPool[k] = v;
-    }
-    const counts = {};
-    const picked = [];
-    const draw = pool => {
-      const available = {};
-      for (const [k, v] of Object.entries(pool)) {
-        if ((counts[k] || 0) < MAX_LETTER_COUNT) available[k] = v;
-      }
-      const source = Object.keys(available).length ? available : pool;
-      return weightedPick(source);
-    };
-    for (let i = 0; i < vowelTarget; i++) {
-      const l = draw(vowelPool);
-      counts[l] = (counts[l] || 0) + 1;
-      picked.push(l);
-    }
-    for (let i = 0; i < consonantTarget; i++) {
-      const l = draw(consonantPool);
-      counts[l] = (counts[l] || 0) + 1;
-      picked.push(l);
-    }
-    for (let i = picked.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [picked[i], picked[j]] = [picked[j], picked[i]];
-    }
-    return picked;
+function sampleBalancedLetters(total, rng) {
+  const vowelTarget = MIN_VOWELS + Math.floor(rng() * (MAX_VOWELS - MIN_VOWELS + 1));
+  const consonantTarget = total - vowelTarget;
+  const vowelPool = {}, consonantPool = {};
+  for (const [k, v] of Object.entries(LETTER_WEIGHTS)) {
+    if (VOWELS.has(k)) vowelPool[k] = v;
+    else consonantPool[k] = v;
   }
-
-  const SVG_NS = "http://www.w3.org/2000/svg";
-  function el(name, attrs = {}) {
-    const e = document.createElementNS(SVG_NS, name);
-    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-    return e;
-  }
-
-  function generateGrid() {
-    svg.innerHTML = '';
-    letters = [];
-    cellRects = [];
-    cellPositions = [];
-    lineEls = [];
-    const flat = sampleBalancedLetters(GRID_SIZE * GRID_SIZE);
-    let idx = 0;
-    for (let r = 0; r < GRID_SIZE; r++) {
-      const letterRow = [], rectRow = [], posRow = [];
-      for (let c = 0; c < GRID_SIZE; c++) {
-        const letter = flat[idx++];
-        const x = MARGIN + c * (BUTTON_SIZE + BUTTON_SPACING);
-        const y = MARGIN + r * (BUTTON_SIZE + BUTTON_SPACING);
-        const rect = el('rect', {
-          x, y, width: BUTTON_SIZE, height: BUTTON_SIZE,
-          rx: CORNER_RADIUS, ry: CORNER_RADIUS,
-          class: 'cell-rect'
-        });
-        svg.appendChild(rect);
-        const txt = el('text', {
-          x: x + BUTTON_SIZE / 2, y: y + BUTTON_SIZE / 2,
-          class: 'cell-letter'
-        });
-        txt.textContent = letter;
-        svg.appendChild(txt);
-        const pts = el('text', {
-          x: x + BUTTON_SIZE - 6, y: y + BUTTON_SIZE - 6,
-          class: 'cell-points'
-        });
-        pts.textContent = String(LETTER_POINTS[letter]);
-        svg.appendChild(pts);
-        letterRow.push(letter);
-        rectRow.push(rect);
-        posRow.push({ x, y, cx: x + BUTTON_SIZE / 2, cy: y + BUTTON_SIZE / 2 });
-      }
-      letters.push(letterRow);
-      cellRects.push(rectRow);
-      cellPositions.push(posRow);
+  const counts = {};
+  const picked = [];
+  const draw = pool => {
+    const available = {};
+    for (const [k, v] of Object.entries(pool)) {
+      if ((counts[k] || 0) < MAX_LETTER_COUNT) available[k] = v;
     }
+    const source = Object.keys(available).length ? available : pool;
+    return weightedPick(source, rng);
+  };
+  for (let i = 0; i < vowelTarget; i++) {
+    const l = draw(vowelPool);
+    counts[l] = (counts[l] || 0) + 1;
+    picked.push(l);
   }
-
-  function svgPoint(clientX, clientY) {
-    const rect = svg.getBoundingClientRect();
-    const vb = svg.viewBox.baseVal;
-    const sx = vb.width / rect.width;
-    const sy = vb.height / rect.height;
-    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+  for (let i = 0; i < consonantTarget; i++) {
+    const l = draw(consonantPool);
+    counts[l] = (counts[l] || 0) + 1;
+    picked.push(l);
   }
-
-  function cellAt(x, y) {
-    for (let r = 0; r < GRID_SIZE; r++) {
-      for (let c = 0; c < GRID_SIZE; c++) {
-        const p = cellPositions[r][c];
-        if (x > p.x && x < p.x + BUTTON_SIZE && y > p.y && y < p.y + BUTTON_SIZE) {
-          return [r, c];
-        }
-      }
-    }
-    return null;
+  for (let i = picked.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [picked[i], picked[j]] = [picked[j], picked[i]];
   }
+  return picked;
+}
 
-  function isSelected(r, c) {
-    return selected.some(([rr, cc]) => rr === r && cc === c);
-  }
+function el(name, attrs = {}) {
+  const e = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
 
-  function addLetter(r, c) {
-    if (isSelected(r, c)) return;
-    if (selected.length) {
-      const [lr, lc] = selected[selected.length - 1];
-      if (Math.abs(r - lr) > 1 || Math.abs(c - lc) > 1) return;
-    }
-    selected.push([r, c]);
-    cellRects[r][c].classList.add('selected');
-    if (selected.length > 1) {
-      const a = cellPositions[selected[selected.length - 2][0]][selected[selected.length - 2][1]];
-      const b = cellPositions[r][c];
-      const line = el('line', {
-        x1: a.cx, y1: a.cy, x2: b.cx, y2: b.cy,
-        class: 'drag-line'
+function generateGrid(rng) {
+  svg.innerHTML = '';
+  letters = [];
+  cellRects = [];
+  cellPositions = [];
+  lineEls = [];
+  const flat = sampleBalancedLetters(GRID_SIZE * GRID_SIZE, rng);
+  let idx = 0;
+  for (let r = 0; r < GRID_SIZE; r++) {
+    const letterRow = [], rectRow = [], posRow = [];
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const letter = flat[idx++];
+      const x = MARGIN + c * (BUTTON_SIZE + BUTTON_SPACING);
+      const y = MARGIN + r * (BUTTON_SIZE + BUTTON_SPACING);
+      const rect = el('rect', {
+        x, y, width: BUTTON_SIZE, height: BUTTON_SIZE,
+        rx: CORNER_RADIUS, ry: CORNER_RADIUS, class: 'cell-rect'
       });
-      svg.appendChild(line);
-      lineEls.push(line);
+      svg.appendChild(rect);
+      const txt = el('text', {
+        x: x + BUTTON_SIZE / 2, y: y + BUTTON_SIZE / 2, class: 'cell-letter'
+      });
+      txt.textContent = letter;
+      svg.appendChild(txt);
+      const pts = el('text', {
+        x: x + BUTTON_SIZE - 6, y: y + BUTTON_SIZE - 6, class: 'cell-points'
+      });
+      pts.textContent = String(LETTER_POINTS[letter]);
+      svg.appendChild(pts);
+      letterRow.push(letter);
+      rectRow.push(rect);
+      posRow.push({ x, y, cx: x + BUTTON_SIZE / 2, cy: y + BUTTON_SIZE / 2 });
     }
-    wordEl.textContent = selected.map(([rr, cc]) => letters[rr][cc]).join('');
+    letters.push(letterRow);
+    cellRects.push(rectRow);
+    cellPositions.push(posRow);
   }
+}
 
-  function clearSelection() {
-    for (const [r, c] of selected) cellRects[r][c].classList.remove('selected');
-    for (const l of lineEls) l.remove();
-    selected = [];
-    lineEls = [];
+// ==== Selection / input ====
+function svgPoint(clientX, clientY) {
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  return {
+    x: (clientX - rect.left) * (vb.width / rect.width),
+    y: (clientY - rect.top) * (vb.height / rect.height),
+  };
+}
+function cellAt(x, y) {
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const p = cellPositions[r][c];
+      if (x > p.x && x < p.x + BUTTON_SIZE && y > p.y && y < p.y + BUTTON_SIZE) return [r, c];
+    }
   }
+  return null;
+}
+function isSelected(r, c) { return selected.some(([rr, cc]) => rr === r && cc === c); }
 
-  function handleStart(clientX, clientY) {
-    if (gameOver) return;
-    clearSelection();
-    const p = svgPoint(clientX, clientY);
-    const hit = cellAt(p.x, p.y);
-    if (!hit) return;
-    dragging = true;
-    addLetter(hit[0], hit[1]);
+function addLetter(r, c) {
+  if (isSelected(r, c)) return;
+  if (selected.length) {
+    const [lr, lc] = selected[selected.length - 1];
+    if (Math.abs(r - lr) > 1 || Math.abs(c - lc) > 1) return;
   }
-
-  function handleMove(clientX, clientY) {
-    if (!dragging || gameOver) return;
-    const p = svgPoint(clientX, clientY);
-    const hit = cellAt(p.x, p.y);
-    if (hit) addLetter(hit[0], hit[1]);
+  selected.push([r, c]);
+  cellRects[r][c].classList.add('selected');
+  if (selected.length > 1) {
+    const a = cellPositions[selected[selected.length - 2][0]][selected[selected.length - 2][1]];
+    const b = cellPositions[r][c];
+    const line = el('line', { x1: a.cx, y1: a.cy, x2: b.cx, y2: b.cy, class: 'drag-line' });
+    svg.appendChild(line);
+    lineEls.push(line);
   }
+  wordEl.textContent = selected.map(([rr, cc]) => letters[rr][cc]).join('');
+}
 
-  function handleEnd() {
-    if (!dragging) return;
-    dragging = false;
-    if (gameOver || !selected.length) return;
-    const word = selected.map(([r, c]) => letters[r][c]).join('').toLowerCase();
-    if (usedWords.has(word)) {
-      wordEl.textContent = `⚠️ ${word} already used`;
-    } else if (word.length >= MIN_WORD_LENGTH && dictionary.has(word)) {
-      usedWords.add(word);
-      let pts = 0;
-      for (const ch of word) pts += LETTER_POINTS[ch.toUpperCase()];
-      score += pts;
-      scoreEl.textContent = `Score: ${score}`;
-      wordEl.textContent = `✅ ${word} +${pts} pts`;
+function clearSelection() {
+  for (const [r, c] of selected) cellRects[r][c].classList.remove('selected');
+  for (const l of lineEls) l.remove();
+  selected = [];
+  lineEls = [];
+}
+
+function handleStart(clientX, clientY) {
+  if (gameOver) return;
+  clearSelection();
+  const p = svgPoint(clientX, clientY);
+  const hit = cellAt(p.x, p.y);
+  if (!hit) return;
+  dragging = true;
+  addLetter(hit[0], hit[1]);
+}
+function handleMove(clientX, clientY) {
+  if (!dragging || gameOver) return;
+  const p = svgPoint(clientX, clientY);
+  const hit = cellAt(p.x, p.y);
+  if (hit) addLetter(hit[0], hit[1]);
+}
+function handleEnd() {
+  if (!dragging) return;
+  dragging = false;
+  if (gameOver || !selected.length) return;
+  const word = selected.map(([r, c]) => letters[r][c]).join('').toLowerCase();
+  if (usedWords.has(word)) {
+    wordEl.textContent = `⚠️ ${word} already used`;
+  } else if (word.length >= MIN_WORD_LENGTH && dictionary.has(word)) {
+    usedWords.add(word);
+    let pts = 0;
+    for (const ch of word) pts += LETTER_POINTS[ch.toUpperCase()];
+    score += pts;
+    scoreEl.textContent = `Score: ${score}`;
+    wordEl.textContent = `✅ ${word} +${pts} pts`;
+  } else {
+    wordEl.textContent = `❌ ${word} not valid`;
+  }
+  clearSelection();
+}
+
+svg.addEventListener('mousedown', e => { e.preventDefault(); handleStart(e.clientX, e.clientY); });
+window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+window.addEventListener('mouseup', handleEnd);
+svg.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; handleStart(t.clientX, t.clientY); }, { passive: false });
+svg.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; handleMove(t.clientX, t.clientY); }, { passive: false });
+svg.addEventListener('touchend', e => { e.preventDefault(); handleEnd(); }, { passive: false });
+
+// ==== Timer / end of game ====
+function startTimer() {
+  clearInterval(timerId);
+  timeLeft = TIME_LIMIT;
+  timerEl.textContent = `Time: ${timeLeft}`;
+  timerId = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) {
+      clearInterval(timerId);
+      timerEl.textContent = "Time's up!";
+      wordEl.textContent = "Game Over!";
+      gameOver = true;
+      onGameOver();
     } else {
-      wordEl.textContent = `❌ ${word} not valid`;
+      timerEl.textContent = `Time: ${timeLeft}`;
     }
-    clearSelection();
+  }, 1000);
+}
+
+function showPossibleWords() {
+  const found = new Set();
+  const grid = letters.map(row => row.map(ch => ch.toLowerCase()));
+  const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
+  function dfs(r, c, word) {
+    if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE || visited[r][c]) return;
+    const nw = word + grid[r][c];
+    if (!prefixes.has(nw)) return;
+    if (nw.length >= MIN_WORD_LENGTH && dictionary.has(nw)) found.add(nw);
+    visited[r][c] = true;
+    for (let dr = -1; dr <= 1; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if (dr || dc) dfs(r + dr, c + dc, nw);
+    visited[r][c] = false;
   }
+  for (let r = 0; r < GRID_SIZE; r++)
+    for (let c = 0; c < GRID_SIZE; c++) dfs(r, c, "");
 
-  svg.addEventListener('mousedown', e => { e.preventDefault(); handleStart(e.clientX, e.clientY); });
-  window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
-  window.addEventListener('mouseup', handleEnd);
-  svg.addEventListener('touchstart', e => {
-    e.preventDefault();
-    const t = e.touches[0];
-    handleStart(t.clientX, t.clientY);
-  }, { passive: false });
-  svg.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const t = e.touches[0];
-    handleMove(t.clientX, t.clientY);
-  }, { passive: false });
-  svg.addEventListener('touchend', e => { e.preventDefault(); handleEnd(); }, { passive: false });
+  const scored = [...found].map(w => {
+    let p = 0;
+    for (const ch of w) p += LETTER_POINTS[ch.toUpperCase()];
+    return [w, p];
+  }).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-  function startTimer() {
-    clearInterval(timerId);
-    timeLeft = TIME_LIMIT;
-    timerEl.textContent = `Time: ${timeLeft}`;
-    timerId = setInterval(() => {
-      timeLeft--;
-      if (timeLeft <= 0) {
-        clearInterval(timerId);
-        timerEl.textContent = "Time's up!";
-        wordEl.textContent = "Game Over!";
-        gameOver = true;
-        showPossibleWords();
-        actionBtn.textContent = 'New Game';
-      } else {
-        timerEl.textContent = `Time: ${timeLeft}`;
-      }
-    }, 1000);
+  const hits = scored.filter(([w]) => usedWords.has(w)).length;
+  let html = `<h3>${hits}/${scored.length} words found — score ${score}</h3>`;
+  if (!scored.length) {
+    html += 'No valid words found.';
+  } else {
+    for (const [w, p] of scored) {
+      const got = usedWords.has(w);
+      const mark = got ? '✓ ' : '  ';
+      const cls = got ? 'hit' : 'miss';
+      html += `<span class="${cls}">${mark}${w.padEnd(14, ' ')}${String(p).padStart(3, ' ')} pts</span>\n`;
+    }
   }
+  wordsPanel.innerHTML = html;
+  wordsPanel.style.display = 'block';
+}
 
-  function showPossibleWords() {
-    const found = new Set();
-    const grid = letters.map(row => row.map(ch => ch.toLowerCase()));
-    const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
-    function dfs(r, c, word) {
-      if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE || visited[r][c]) return;
-      const nw = word + grid[r][c];
-      if (!prefixes.has(nw)) return;
-      if (nw.length >= MIN_WORD_LENGTH && dictionary.has(nw)) found.add(nw);
-      visited[r][c] = true;
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr || dc) dfs(r + dr, c + dc, nw);
-        }
-      }
-      visited[r][c] = false;
-    }
-    for (let r = 0; r < GRID_SIZE; r++) {
-      for (let c = 0; c < GRID_SIZE; c++) dfs(r, c, "");
-    }
-    const scored = [...found].map(w => {
-      let p = 0;
-      for (const ch of w) p += LETTER_POINTS[ch.toUpperCase()];
-      return [w, p];
-    }).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+async function onGameOver() {
+  showPossibleWords();
+  if (mode === 'daily') {
+    await submitDailyScore();
+    await showLeaderboard();
+  }
+  actionBtn.textContent = mode === 'daily' ? 'Done' : 'New Game';
+}
 
-    const hits = scored.filter(([w]) => usedWords.has(w)).length;
-    let html = `<h3>${hits}/${scored.length} words found — score ${score}</h3>`;
-    if (!scored.length) {
-      html += 'No valid words found.';
+// ==== Firebase scoreboard ====
+async function submitDailyScore() {
+  if (!FIREBASE_ENABLED || !db) {
+    statusMsg.textContent = 'Scoreboard not configured yet.';
+    return;
+  }
+  const date = dailyKey();
+  const submittedKey = `wg_submitted_${date}`;
+  if (localStorage.getItem(submittedKey)) {
+    statusMsg.textContent = 'Already submitted today. Come back tomorrow!';
+    return;
+  }
+  try {
+    await addDoc(collection(db, 'scores'), {
+      username: username.slice(0, 20),
+      score: Math.max(0, Math.min(500, score | 0)),
+      date,
+      ts: serverTimestamp(),
+    });
+    localStorage.setItem(submittedKey, String(score));
+    statusMsg.textContent = 'Score submitted!';
+  } catch (err) {
+    console.error(err);
+    statusMsg.textContent = 'Could not submit score (check Firestore rules).';
+  }
+}
+
+async function showLeaderboard() {
+  if (!FIREBASE_ENABLED || !db) return;
+  const date = dailyKey();
+  leaderboardPanel.innerHTML = `<h3>Today's Leaderboard (${date})</h3><p>Loading…</p>`;
+  leaderboardPanel.style.display = 'block';
+  try {
+    const q = query(
+      collection(db, 'scores'),
+      where('date', '==', date),
+      orderBy('score', 'desc'),
+      limit(20),
+    );
+    const snap = await getDocs(q);
+    let html = `<h3>Today's Leaderboard (${date})</h3>`;
+    if (snap.empty) {
+      html += '<p>No scores yet — you could be the first!</p>';
     } else {
-      for (const [w, p] of scored) {
-        const got = usedWords.has(w);
-        const mark = got ? '✓ ' : '  ';
-        const cls = got ? 'hit' : 'miss';
-        html += `<span class="${cls}">${mark}${w.padEnd(14, ' ')}${String(p).padStart(3, ' ')} pts</span>\n`;
+      let rank = 1;
+      for (const doc of snap.docs) {
+        const d = doc.data();
+        const mine = d.username === username;
+        html += `<div class="lb-row ${mine ? 'me' : ''}">
+          <span class="lb-rank">#${rank}</span>
+          <span>${escapeHtml(d.username)}</span>
+          <span class="lb-score">${d.score}</span>
+        </div>`;
+        rank++;
       }
     }
-    wordsPanel.innerHTML = html;
-    wordsPanel.style.display = 'block';
+    leaderboardPanel.innerHTML = html;
+  } catch (err) {
+    console.error(err);
+    leaderboardPanel.innerHTML = `<h3>Leaderboard</h3><p>Couldn't load (check Firestore rules).</p>`;
   }
+}
 
-  function newGame() {
-    score = 0;
-    scoreEl.textContent = 'Score: 0';
-    wordEl.textContent = '';
-    usedWords = new Set();
-    gameOver = false;
-    clearSelection();
-    wordsPanel.style.display = 'none';
-    wordsPanel.innerHTML = '';
-    generateGrid();
-    startTimer();
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ==== Game lifecycle / mode handling ====
+function showMenu() {
+  mode = null;
+  gameOver = true;
+  clearInterval(timerId);
+  clearSelection();
+  menuEl.hidden = false;
+  usernameScreen.hidden = true;
+  topEl.hidden = true;
+  boardEl.hidden = true;
+  actionBtn.hidden = true;
+  backBtn.hidden = true;
+  wordsPanel.style.display = 'none';
+  leaderboardPanel.style.display = 'none';
+  statusMsg.textContent = '';
+}
+
+function startGame(selectedMode) {
+  mode = selectedMode;
+  menuEl.hidden = true;
+  usernameScreen.hidden = true;
+  topEl.hidden = false;
+  boardEl.hidden = false;
+  actionBtn.hidden = false;
+  backBtn.hidden = false;
+  wordsPanel.style.display = 'none';
+  leaderboardPanel.style.display = 'none';
+  statusMsg.textContent = '';
+
+  score = 0;
+  scoreEl.textContent = 'Score: 0';
+  wordEl.textContent = '';
+  usedWords = new Set();
+  gameOver = false;
+  clearSelection();
+
+  let rng;
+  if (mode === 'daily') {
+    const date = dailyKey();
+    modeLabel.textContent = `Daily Challenge — ${date} · ${username}`;
+    rng = mulberry32(hashString('wordgrid-' + date));
+    actionBtn.textContent = 'Restart (practice mode)';
+  } else {
+    modeLabel.textContent = 'Practice';
+    rng = Math.random;
     actionBtn.textContent = 'Restart';
   }
+  generateGrid(rng);
+  startTimer();
+}
 
-  actionBtn.addEventListener('click', newGame);
+$('btn-practice').addEventListener('click', () => startGame('practice'));
 
-  async function loadDictionary() {
-    try {
-      const resp = await fetch('20k.txt');
-      if (!resp.ok) throw new Error(resp.statusText);
-      const text = await resp.text();
-      dictionary = new Set(
-        text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(Boolean)
-      );
-      prefixes = new Set();
-      for (const w of dictionary) {
-        for (let i = 1; i <= w.length; i++) prefixes.add(w.slice(0, i));
-      }
-      loadingEl.hidden = true;
-      topEl.hidden = false;
-      boardEl.hidden = false;
-      actionBtn.hidden = false;
-      newGame();
-    } catch (err) {
-      loadingEl.textContent = 'Failed to load 20k.txt — serve this page from an HTTP server (e.g. `python -m http.server`), not file://';
-    }
+$('btn-daily').addEventListener('click', () => {
+  if (!FIREBASE_ENABLED) {
+    statusMsg.textContent = 'Daily mode needs Firebase configured. Playing solo daily.';
   }
+  if (!username) {
+    menuEl.hidden = true;
+    usernameScreen.hidden = false;
+    $('username-input').focus();
+  } else {
+    startGame('daily');
+  }
+});
 
-  loadDictionary();
-})();
+$('btn-save-username').addEventListener('click', () => {
+  const v = $('username-input').value.trim();
+  if (!v) return;
+  username = v.slice(0, 20);
+  localStorage.setItem('wg_username', username);
+  startGame('daily');
+});
+$('btn-cancel-username').addEventListener('click', showMenu);
+$('username-input').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-save-username').click(); });
+
+actionBtn.addEventListener('click', () => {
+  // In daily mode, restart becomes a practice round (so people can't farm daily).
+  if (mode === 'daily') startGame('practice');
+  else startGame('practice');
+});
+backBtn.addEventListener('click', showMenu);
+
+// ==== Dictionary load ====
+async function loadDictionary() {
+  try {
+    const resp = await fetch('20k.txt');
+    if (!resp.ok) throw new Error(resp.statusText);
+    const text = await resp.text();
+    dictionary = new Set(text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(Boolean));
+    prefixes = new Set();
+    for (const w of dictionary) {
+      for (let i = 1; i <= w.length; i++) prefixes.add(w.slice(0, i));
+    }
+  } catch (err) {
+    statusMsg.textContent = 'Failed to load 20k.txt. Serve via HTTP (not file://).';
+  }
+}
+
+loadDictionary().then(showMenu);
 </script>
 </body>
 </html>
