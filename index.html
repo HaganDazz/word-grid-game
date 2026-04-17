@@ -253,8 +253,11 @@ function mulberry32(seed) {
   };
 }
 function dailyKey() {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  // Daily cycle rolls over at midnight Central Time (handles CST/CDT via IANA zone).
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
 }
 
 // ==== Game state ====
