@@ -629,7 +629,7 @@ function startGame(selectedMode) {
   menuEl.hidden = true;
   usernameScreen.hidden = true;
   topEl.hidden = false;
-  boardEl.hidden = false;
+  boardEl.hidden = true;         // grid stays hidden until the countdown begins
   actionBtn.hidden = false;
   backBtn.hidden = false;
   wordsPanel.style.display = 'none';
@@ -664,6 +664,7 @@ function beginCountdown() {
   if (gameStarted) return;
   clearInterval(countdownId);
   actionBtn.hidden = true;
+  boardEl.hidden = false;        // reveal the grid during the 3-second countdown
   wordEl.textContent = '';
   let count = 3;
   timerEl.textContent = `Starting in ${count}…`;
